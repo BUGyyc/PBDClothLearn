@@ -10,19 +10,24 @@ public class ClothSimulateTest : MonoBehaviour
 
     public List<AttachBind> attachBinds = new List<AttachBind>();
 
-    void Start(){
-        foreach(var a in attachBinds){
-            cloth.Attach(a.vertexIndex,a.target);
+    void Start()
+    {
+
+        //初始化布料的绑定点
+        foreach (var a in attachBinds)
+        {
+            cloth.Attach(a.vertexIndex, a.target);
         }
     }
 
 
 
     [System.Serializable]
-    public class AttachBind{
+    public class AttachBind
+    {
         public int vertexIndex;
         public Transform target;
     }
-    
+
 
 }

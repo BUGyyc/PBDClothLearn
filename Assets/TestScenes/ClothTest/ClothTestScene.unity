@@ -927,7 +927,7 @@ GameObject:
   - component: {fileID: 1399915495}
   - component: {fileID: 1399915494}
   m_Layer: 0
-  m_Name: Test
+  m_Name: SimulateManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

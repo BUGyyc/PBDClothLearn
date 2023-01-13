@@ -7,13 +7,15 @@ using Unity.Collections;
 
 namespace PBDLearn
 {
-    public struct DistanceConstraintInfo{
+    public struct DistanceConstraintInfo
+    {
         public float restLength;
         public int vIndex0;
         public int vIndex1;
     }
 
-    public struct BendConstraintInfo{
+    public struct BendConstraintInfo
+    {
         public int vIndex0;
         public int vIndex1;
         public int vIndex2;
@@ -21,14 +23,16 @@ namespace PBDLearn
         public float rest; // angle
     }
 
-    public struct PinConstraintInfo{
+    public struct PinConstraintInfo
+    {
         public float3 position;
     }
 
     /// <summary>
     /// 碰撞约束
     /// </summary>
-    public struct CollisionConstraintInfo{
+    public struct CollisionConstraintInfo
+    {
         public float3 concatPosition;
         public float3 normal;
         public float3 velocity;
@@ -37,12 +41,12 @@ namespace PBDLearn
     [Unity.Burst.BurstCompile]
     struct PositionEstimateJob : IJobParallelFor
     {
-        [ReadOnly] 
+        [ReadOnly]
         public NativeArray<float3> positions;
         [ReadOnly]
         public NativeArray<float3> normals;
 
-        [ReadOnly] 
+        [ReadOnly]
         public NativeArray<float3> velocities;
         [ReadOnly]
         public NativeArray<float> masses;
@@ -56,17 +60,20 @@ namespace PBDLearn
             var p = positions[index];
             var v = velocities[index];
             var m = masses[index];
-            if(m > 0){
+            if (m > 0)
+            {
                 var normal = normals[index];
-                var fieldForceAtNormal = math.dot(fieldForce,normal) * normal;
+                var fieldForceAtNormal = math.dot(fieldForce, normal) * normal;
                 var v1 = v + ClothSimulator.G * dt + fieldForceAtNormal * dt / m;
-                v1 *= math.max(0,(1 - damper * dt / m)); //阻尼
+                v1 *= math.max(0, (1 - damper * dt / m)); //阻尼
                 var p1 = p + v1 * dt;
                 predictPositions[index] = p1;
-            }else{
+            }
+            else
+            {
                 predictPositions[index] = p;
             }
-            
+
         }
     }
 
@@ -92,29 +99,33 @@ namespace PBDLearn
         public NativeList<RigidBodyForceApply>.ParallelWriter rigidBodyForceApplies;
 
 
-        private void EnableCollisionConstraint(int index,ref ConcatInfo concatInfo,ref RigidbodyDesc rigidbody,int entityId){
+        private void EnableCollisionConstraint(int index, ref ConcatInfo concatInfo, ref RigidbodyDesc rigidbody, int entityId)
+        {
             constraintTypes[index] |= ConstraintType.Collision;
 
-            var collisionConstraintInfo = new CollisionConstraintInfo(){
+            var collisionConstraintInfo = new CollisionConstraintInfo()
+            {
                 concatPosition = concatInfo.position + concatInfo.normal * 0.05f,
                 normal = concatInfo.normal
             };
             var m1 = rigidbody.mass;
-            if(m1 > 0){
+            if (m1 > 0)
+            {
                 var bounciness = rigidbody.bounciness;
                 var m0 = masses[index];
-                var v0 = (predictPositions[index] - positions[index])/dt;
-                var v0Normal = math.dot(v0,concatInfo.normal) * concatInfo.normal;
-                var v1Normal = math.dot(rigidbody.velocity,concatInfo.normal) * concatInfo.normal;
-                
+                var v0 = (predictPositions[index] - positions[index]) / dt;
+                var v0Normal = math.dot(v0, concatInfo.normal) * concatInfo.normal;
+                var v1Normal = math.dot(rigidbody.velocity, concatInfo.normal) * concatInfo.normal;
+
                 var v0NormalNew = (bounciness + 1) * m1 * v1Normal + v0Normal * (m0 - bounciness * m1);
                 var v1NormalNew = (bounciness + 1) * m0 * v0Normal + v1Normal * (m1 - bounciness * m0);
 
                 v0NormalNew /= (m0 + m1);
                 v1NormalNew /= (m0 + m1);
 
-                rigidBodyForceApplies.AddNoResize(new RigidBodyForceApply(){
-                    entityId =  entityId,
+                rigidBodyForceApplies.AddNoResize(new RigidBodyForceApply()
+                {
+                    entityId = entityId,
                     velocity = v1NormalNew - v1Normal
                 });
                 collisionConstraintInfo.velocity = (v0 - v0Normal + v0NormalNew);
@@ -123,7 +134,8 @@ namespace PBDLearn
             collisionConstraints[index] = collisionConstraintInfo;
         }
 
-        private void DisableCollisionConstraint(int index){
+        private void DisableCollisionConstraint(int index)
+        {
             constraintTypes[index] &= (~ConstraintType.Collision);
         }
 
@@ -136,30 +148,36 @@ namespace PBDLearn
             var boxes = collidersGroup.boxes;
             var capsules = collidersGroup.capsules;
 
-            for(var i = 0; i < spheres.Length; i ++){
+            for (var i = 0; i < spheres.Length; i++)
+            {
                 var s = spheres[i];
                 ConcatInfo concatInfo;
-                if(IntersectUtil.GetClosestSurfacePoint(position,s.collider,out concatInfo)){
-                    EnableCollisionConstraint(index,ref concatInfo,ref s.rigidbody,s.entityId);
+                if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
+                {
+                    EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
                     return;
                 }
             }
 
-            for(var i = 0; i < boxes.Length; i ++){
+            for (var i = 0; i < boxes.Length; i++)
+            {
                 var s = boxes[i];
                 ConcatInfo concatInfo;
-                if(IntersectUtil.GetClosestSurfacePoint(position,s.collider,out concatInfo)){
-                    EnableCollisionConstraint(index,ref concatInfo,ref s.rigidbody,s.entityId);
-                   
+                if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
+                {
+                    EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
+
                     return;
                 }
             }
 
-            for(var i = 0; i < capsules.Length; i ++){
+            for (var i = 0; i < capsules.Length; i++)
+            {
                 var s = capsules[i];
                 ConcatInfo concatInfo;
-                if(IntersectUtil.GetClosestSurfacePoint(position,s.collider,out concatInfo)){
-                    EnableCollisionConstraint(index,ref concatInfo,ref s.rigidbody,s.entityId);
+                if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
+                {
+                    EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
                     return;
                 }
             }
@@ -184,7 +202,7 @@ namespace PBDLearn
 
         [ReadOnly]
         public NativeArray<float> masses;
-        
+
         [ReadOnly]
         public NativeArray<DistanceConstraintInfo> distanceConstriants;
 
@@ -205,9 +223,12 @@ namespace PBDLearn
             var length = math.length(distV);
             var err = length - constraint.restLength;
             float3 correct;
-            if(err < 0){
+            if (err < 0)
+            {
                 correct = compressStiffness * normal * err;
-            }else{
+            }
+            else
+            {
                 correct = stretchStiffness * normal * err;
             }
             var totalM = m0 + m1;
@@ -243,41 +264,42 @@ namespace PBDLearn
         public void Execute(int index)
         {
             var cons = bendConstarints[index];
-            
+
             var p1 = predictPositions[cons.vIndex0];
             var p2 = predictPositions[cons.vIndex1] - p1;
             var p3 = predictPositions[cons.vIndex2] - p1;
             var p4 = predictPositions[cons.vIndex3] - p1;
             p1 = 0;
-            var n1 = math.normalize(math.cross(p2,p3));
-            var n2 = math.normalize(math.cross(p2,p4));
+            var n1 = math.normalize(math.cross(p2, p3));
+            var n2 = math.normalize(math.cross(p2, p4));
 
-            var d = math.dot(n1,n2);
+            var d = math.dot(n1, n2);
 
-            var p23Len = math.length(math.cross(p2,p3));
-            var p24Len = math.length(math.cross(p2,p4));
+            var p23Len = math.length(math.cross(p2, p3));
+            var p24Len = math.length(math.cross(p2, p4));
 
-            var q3 = (math.cross(p2,n2) + math.cross(n1,p2) * d) / p23Len;
-            var q4 = (math.cross(p2,n1) + math.cross(n2,p2) * d) / p24Len;
-            var q2 = - (math.cross(p3,n2) + math.cross(n1,p3) * d) / p23Len 
-            - (math.cross(p4,n1) + math.cross(n2,p4) * d) / p24Len;
-            var q1 = - q2 - q3 - q4;
+            var q3 = (math.cross(p2, n2) + math.cross(n1, p2) * d) / p23Len;
+            var q4 = (math.cross(p2, n1) + math.cross(n2, p2) * d) / p24Len;
+            var q2 = -(math.cross(p3, n2) + math.cross(n1, p3) * d) / p23Len
+            - (math.cross(p4, n1) + math.cross(n2, p4) * d) / p24Len;
+            var q1 = -q2 - q3 - q4;
 
             var w1 = 1 / masses[cons.vIndex0];
             var w2 = 1 / masses[cons.vIndex1];
             var w3 = 1 / masses[cons.vIndex2];
             var w4 = 1 / masses[cons.vIndex3];
 
-            var sum = w1 * math.lengthsq(q1) 
-            + w2 * math.lengthsq(q2) 
-            + w3 * math.lengthsq(q3) 
+            var sum = w1 * math.lengthsq(q1)
+            + w2 * math.lengthsq(q2)
+            + w3 * math.lengthsq(q3)
             + w4 * math.lengthsq(q4);
 
-            sum = math.max(0.01f,sum);
+            sum = math.max(0.01f, sum);
 
-            var s = - (math.acos(d) - cons.rest) * math.sqrt(1 - d * d) / sum;
+            var s = -(math.acos(d) - cons.rest) * math.sqrt(1 - d * d) / sum;
 
-            if(math.isfinite(s)){
+            if (math.isfinite(s))
+            {
                 var dp1 = s * w1 * q1 * di * bendStiffness;
                 var dp2 = s * w2 * q2 * di * bendStiffness;
                 var dp3 = s * w3 * q3 * di * bendStiffness;
@@ -298,7 +320,8 @@ namespace PBDLearn
     /// 约束合计
     /// </summary>
     [Unity.Burst.BurstCompile]
-    public struct ConstraintsJob:IJobParallelFor{
+    public struct ConstraintsJob : IJobParallelFor
+    {
 
         /// <summary>
         /// 总共迭代次数
@@ -334,8 +357,9 @@ namespace PBDLearn
 
         public float di;
 
-        public ConstraintsJob(NativeArray<float3> positions, 
-        NativeArray<float3> predictPositions,float di){
+        public ConstraintsJob(NativeArray<float3> positions,
+        NativeArray<float3> predictPositions, float di)
+        {
             this.positions = positions;
             this.predictPositions = predictPositions;
             this.di = di;
@@ -354,12 +378,14 @@ namespace PBDLearn
             var constraintType = activeConstraintTypes[index];
             var positionCorrect = this.positionCorrect[index];
             this.positionCorrect[index] = 0;
-            if((constraintType & ConstraintType.Pin) == ConstraintType.Pin){
+            if ((constraintType & ConstraintType.Pin) == ConstraintType.Pin)
+            {
                 //固定约束
                 this.predictPositions[index] = this.pinConstriants[index].position;
                 return;
             }
-            if((constraintType & ConstraintType.Collision) == ConstraintType.Collision){
+            if ((constraintType & ConstraintType.Collision) == ConstraintType.Collision)
+            {
                 //碰撞约束
                 var position = this.positions[index];
                 var collisionInfo = collisionConstraints[index];
@@ -395,10 +421,13 @@ namespace PBDLearn
 
         public void Execute(int index)
         {
-            if( (constraintTypes[index] & ConstraintType.Collision) == ConstraintType.Collision){
+            if ((constraintTypes[index] & ConstraintType.Collision) == ConstraintType.Collision)
+            {
                 velocities[index] = this.collisionConstraintInfos[index].velocity;
-            }else{
-                velocities[index] = (predictPositions[index] - positions[index])/dt;
+            }
+            else
+            {
+                velocities[index] = (predictPositions[index] - positions[index]) / dt;
             }
             positions[index] = predictPositions[index];
         }
@@ -417,11 +446,13 @@ namespace PBDLearn
 
         public void Execute()
         {
-            for(var i = 0; i < normals.Length; i ++){
+            for (var i = 0; i < normals.Length; i++)
+            {
                 normals[i] = 0;
             }
 
-            for(var i = 0; i < indices.Length / 3; i ++){
+            for (var i = 0; i < indices.Length / 3; i++)
+            {
                 var offset = i * 3;
                 var vIndex0 = indices[offset];
                 var vIndex1 = indices[offset + 1];
@@ -429,13 +460,14 @@ namespace PBDLearn
                 var p0 = positions[vIndex0];
                 var p1 = positions[vIndex1];
                 var p2 = positions[vIndex2];
-                var n = math.normalize(math.cross(p1 - p0,p2 - p0));
+                var n = math.normalize(math.cross(p1 - p0, p2 - p0));
                 normals[vIndex0] += n;
                 normals[vIndex1] += n;
                 normals[vIndex2] += n;
             }
 
-            for(var i = 0; i < normals.Length; i ++){
+            for (var i = 0; i < normals.Length; i++)
+            {
                 normals[i] = math.normalizesafe(normals[i]);
             }
         }
