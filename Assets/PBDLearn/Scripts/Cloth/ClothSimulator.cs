@@ -11,8 +11,17 @@ namespace PBDLearn
     [System.Flags]
     public enum ConstraintType
     {
+        /// <summary>
+        /// 距离约束
+        /// </summary>
         Distance,
+        /// <summary>
+        /// 弯曲约束
+        /// </summary>
         Pin,
+        /// <summary>
+        /// 碰撞约束
+        /// </summary>
         Collision,
     }
 
@@ -108,7 +117,9 @@ namespace PBDLearn
 
             //创建顶点的质量
             this.BuildMasses();
+            //创建距离约束
             this.BuildDistConstraints();
+            //创建弯曲约束
             this.BuildBendConstraints();
         }
 
@@ -191,21 +202,31 @@ namespace PBDLearn
             });
         }
 
+        /// <summary>
+        /// 构建弯曲约束
+        /// </summary>
         private void BuildBendConstraints()
         {
             var edges = _meshModifier.edges;
             _bendConstraints = new NativeList<BendConstraintInfo>(edges.Count, Allocator.Persistent);
             foreach (var e in edges)
             {
+                //意思是边只被两个三角形共用时，其实就是说相邻边才具有弯曲限制，其他都是独享边，边被一个三角形独享
                 if (e.triangleIndexes.Count == 2)
                 {
+                    //未传参的点
                     var v2 = _meshModifier.GetTriangleVertexIndexExcept(e.triangleIndexes[0], e.vIndex0, e.vIndex1);
+                    //未传参的点
                     var v3 = _meshModifier.GetTriangleVertexIndexExcept(e.triangleIndexes[1], e.vIndex0, e.vIndex1);
+
+                    //过滤错误情况
                     if (v2 < 0 || v3 < 0)
                     {
                         Debug.LogError("mesh data error");
                         continue;
                     }
+
+                    //写入四个点，其实就是一个平行四边形，约束其中两个点的弯曲度
                     var bendConstraint = new BendConstraintInfo();
                     bendConstraint.vIndex0 = e.vIndex0;
                     bendConstraint.vIndex1 = e.vIndex1;
@@ -216,10 +237,10 @@ namespace PBDLearn
                     var p1 = this.positions[bendConstraint.vIndex1] - p0;
                     var p2 = this.positions[bendConstraint.vIndex2] - p0;
                     var p3 = this.positions[bendConstraint.vIndex3] - p0;
-
+                    //两个法向量
                     var n1 = math.normalize(math.cross(p1, p2));
                     var n2 = math.normalize(math.cross(p1, p3));
-
+                    //通过两个法向量去夹角
                     bendConstraint.rest = math.acos(math.dot(n1, n2));
                     _bendConstraints.Add(bendConstraint);
                 }
@@ -328,6 +349,10 @@ namespace PBDLearn
             }
         }
 
+        /// <summary>
+        /// 计算法线Job
+        /// </summary>
+        /// <returns></returns>
         private JobHandle CalculateNormalsJob()
         {
             var job = new NormalCalulateJob();
@@ -337,6 +362,12 @@ namespace PBDLearn
             return job.Schedule();
         }
 
+        /// <summary>
+        /// 预估的Job
+        /// </summary>
+        /// <param name="depend"></param>
+        /// <param name="dt"></param>
+        /// <returns></returns>
         private JobHandle EstimatePositionsJob(JobHandle depend, float dt)
         {
             var job = new PositionEstimateJob();
@@ -348,6 +379,10 @@ namespace PBDLearn
             job.masses = _masses;
             job.damper = _setting.damper;
             job.dt = dt;
+            /// <summary>
+            /// ?? 64 个一个Job??
+            /// </summary>
+            /// <returns></returns>
             return job.Schedule(positions.Length, 64, depend);
         }
 
@@ -360,7 +395,9 @@ namespace PBDLearn
         {
             int iteratorCount = this.constraintSolverIteratorCount;
             float di = 1.0f / (iteratorCount - iterIndex);
+            //??
             var compressStiffnessIt = GetStiffnessForIteration(this.compressStiffness, iteratorCount);
+            //!
             var stretchStiffnessIt = GetStiffnessForIteration(this.stretchStiffness, iteratorCount);
             var job = new DistanceConstraintJob();
             job.di = di;
@@ -401,12 +438,25 @@ namespace PBDLearn
             return job.Schedule(predictPositions.Length, 64, depend);
         }
 
+        /// <summary>
+        /// 逐个解决约束器
+        /// </summary>
+        /// <param name="depend"></param>
+        /// <returns></returns>
         private JobHandle StartConstraintsSolveJob(JobHandle depend)
         {
             JobHandle jobHandle = depend;
             var predictPositions = this._predictPositions;
+
+            //TODO：这里的迭代次数很关键，很影响性能
+            //! 重点 迭代次数
+            //通过设置好的 迭代次数，去解决约束器上的问题
             for (var i = 0; i < this.constraintSolverIteratorCount; i++)
             {
+                /// <summary>
+                /// 距离约束
+                /// </summary>
+                /// <returns></returns>
                 jobHandle = StartDistanceConstraintsJob(jobHandle, i);
                 jobHandle = StartBendConstraintsJob(jobHandle, i);
                 jobHandle = StartFinalConstraintsJob(jobHandle, i);
@@ -429,16 +479,25 @@ namespace PBDLearn
 
         private void UpdateColliderDescs()
         {
+            //清理上一次的信息
             _colliderDescGroups.Clear();
             foreach (var pair in _colliderProxies)
             {
+                //更新最新的 碰撞盒信息
                 pair.Value.FillColliderDesc(_colliderDescGroups);
             }
         }
 
+        /// <summary>
+        /// 碰撞检测 Job
+        /// </summary>
+        /// <param name="depend"></param>
+        /// <param name="dt"></param>
+        /// <returns></returns>
         private JobHandle StartCollisionDetectionJob(JobHandle depend, float dt)
         {
             this.UpdateColliderDescs();
+            //清理残留信息
             _rigidBodyForceApplys.Clear();
             var job = new CollisionJob();
             job.dt = dt;
@@ -448,6 +507,7 @@ namespace PBDLearn
             job.masses = _masses;
             job.positions = positions;
             job.predictPositions = _predictPositions;
+            //?? 并行写入？？
             job.rigidBodyForceApplies = _rigidBodyForceApplys.AsParallelWriter();
             return job.Schedule(vertexCount, 64, depend);
         }
@@ -463,9 +523,15 @@ namespace PBDLearn
         }
 
         private JobHandle _jobHandle;
+        /// <summary>
+        /// Tick Job System
+        /// </summary>
+        /// <param name="dt"></param>
         public void Step(float dt)
         {
+            //? 为何指针覆盖？  传递 handle 是为了表示依赖关心，这里最后是串行 Job ，下一个Job 等待上一个Job结果
             var handle = this.CalculateNormalsJob();
+            //预测位置
             handle = this.EstimatePositionsJob(handle, dt);
             handle = this.StartCollisionDetectionJob(handle, dt);
             handle = StartConstraintsSolveJob(handle);

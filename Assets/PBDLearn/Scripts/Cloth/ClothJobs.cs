@@ -7,6 +7,10 @@ using Unity.Collections;
 
 namespace PBDLearn
 {
+
+    /// <summary>
+    /// 顶点约束信息
+    /// </summary>
     public struct DistanceConstraintInfo
     {
         public float restLength;
@@ -14,6 +18,9 @@ namespace PBDLearn
         public int vIndex1;
     }
 
+    /// <summary>
+    /// 弯曲约束信息
+    /// </summary>
     public struct BendConstraintInfo
     {
         public int vIndex0;
@@ -52,7 +59,13 @@ namespace PBDLearn
         public NativeArray<float> masses;
         [WriteOnly]
         public NativeArray<float3> predictPositions;
+        /// <summary>
+        /// 场力
+        /// </summary>
         public float3 fieldForce;
+        /// <summary>
+        /// 阻尼
+        /// </summary>
         public float damper;
         public float dt;
         public void Execute(int index)
@@ -63,14 +76,21 @@ namespace PBDLearn
             if (m > 0)
             {
                 var normal = normals[index];
+                //?? 为啥要和法线运算  , 这里单独的是风的场力，因为布料的均匀介质，和受力角度关系很大，所以要点乘，再乘以法线，表示一个矢量力度（长度就是力的大小）
                 var fieldForceAtNormal = math.dot(fieldForce, normal) * normal;
+                //?? 为啥要 除以 mass ??
+                // v =  v + gt + a*t/mass
                 var v1 = v + ClothSimulator.G * dt + fieldForceAtNormal * dt / m;
+                //等同于 v = v - at,  a 和阻尼系数有关
                 v1 *= math.max(0, (1 - damper * dt / m)); //阻尼
+                //得到预测位置
                 var p1 = p + v1 * dt;
+                //写入预测位置
                 predictPositions[index] = p1;
             }
             else
             {
+                //没有质量的点，保留在原地，例如布料栓住的点
                 predictPositions[index] = p;
             }
 
@@ -99,24 +119,41 @@ namespace PBDLearn
         public NativeList<RigidBodyForceApply>.ParallelWriter rigidBodyForceApplies;
 
 
+        /// <summary>
+        /// 执行碰撞约束
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="concatInfo"></param>
+        /// <param name="rigidbody"></param>
+        /// <param name="entityId"></param>
         private void EnableCollisionConstraint(int index, ref ConcatInfo concatInfo, ref RigidbodyDesc rigidbody, int entityId)
         {
+            //标记一下这个顶点 有 碰撞约束
             constraintTypes[index] |= ConstraintType.Collision;
 
             var collisionConstraintInfo = new CollisionConstraintInfo()
             {
+                //?? 为啥是 0.05f 精度问题？？
                 concatPosition = concatInfo.position + concatInfo.normal * 0.05f,
                 normal = concatInfo.normal
             };
             var m1 = rigidbody.mass;
             if (m1 > 0)
             {
+                //如果碰撞盒有质量，才让他受力
+
+                //反弹力
                 var bounciness = rigidbody.bounciness;
                 var m0 = masses[index];
+                //计算历史位置到预测位置的 平均速度
                 var v0 = (predictPositions[index] - positions[index]) / dt;
+                //表示 v0 在 normal 上的投影
                 var v0Normal = math.dot(v0, concatInfo.normal) * concatInfo.normal;
+                //碰撞盒速度在 normal 上的投影
                 var v1Normal = math.dot(rigidbody.velocity, concatInfo.normal) * concatInfo.normal;
 
+
+                //?? 冲量计算
                 var v0NormalNew = (bounciness + 1) * m1 * v1Normal + v0Normal * (m0 - bounciness * m1);
                 var v1NormalNew = (bounciness + 1) * m0 * v0Normal + v1Normal * (m1 - bounciness * m0);
 
@@ -142,19 +179,24 @@ namespace PBDLearn
 
         public void Execute(int index)
         {
+            //上一次的坐标，相当于历史坐标
             var position = this.positions[index];
+            //拿到计算好的预测坐标
             var predictPosition = this.positions[index];
             var spheres = collidersGroup.spheres;
             var boxes = collidersGroup.boxes;
             var capsules = collidersGroup.capsules;
 
+            //分别对不同的碰撞盒检测
             for (var i = 0; i < spheres.Length; i++)
             {
                 var s = spheres[i];
                 ConcatInfo concatInfo;
+                //判断是否碰撞
                 if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
                 {
                     EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
+                    //这里认为，只要有碰撞，后面就不需要判断，但是这样容易遗漏
                     return;
                 }
             }
@@ -166,7 +208,7 @@ namespace PBDLearn
                 if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
                 {
                     EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
-
+                    //这里认为，只要有碰撞，后面就不需要判断，但是这样容易遗漏
                     return;
                 }
             }
@@ -178,6 +220,7 @@ namespace PBDLearn
                 if (IntersectUtil.GetClosestSurfacePoint(position, s.collider, out concatInfo))
                 {
                     EnableCollisionConstraint(index, ref concatInfo, ref s.rigidbody, s.entityId);
+                    //这里认为，只要有碰撞，后面就不需要判断，但是这样容易遗漏
                     return;
                 }
             }
@@ -214,21 +257,27 @@ namespace PBDLearn
         {
             var constraint = distanceConstriants[index];
 
+            //取得 约束器内的 预测点 坐标
             var p0 = predictPositions[constraint.vIndex0];
             var p1 = predictPositions[constraint.vIndex1];
+            //约束其 的 定点质量
             var m0 = masses[constraint.vIndex0];
             var m1 = masses[constraint.vIndex1];
+            //预测后的距离
             var distV = p1 - p0;
             var normal = math.normalize(distV);
             var length = math.length(distV);
+            //和提前算好的约束器中的值比较
             var err = length - constraint.restLength;
             float3 correct;
             if (err < 0)
             {
+                //小于约束值 ， 表现压力
                 correct = compressStiffness * normal * err;
             }
             else
             {
+                //大于约束值  ， 表现拉力
                 correct = stretchStiffness * normal * err;
             }
             var totalM = m0 + m1;
@@ -442,6 +491,10 @@ namespace PBDLearn
         [ReadOnly]
         public NativeArray<float3> positions;
 
+
+        /// <summary>
+        /// 只有法线才需要读写
+        /// </summary>
         public NativeArray<float3> normals;
 
         public void Execute()
@@ -460,12 +513,17 @@ namespace PBDLearn
                 var p0 = positions[vIndex0];
                 var p1 = positions[vIndex1];
                 var p2 = positions[vIndex2];
+                //通过边来计算法向量
                 var n = math.normalize(math.cross(p1 - p0, p2 - p0));
+
+                //叠加起来，这样可以混合共用点的法线
                 normals[vIndex0] += n;
                 normals[vIndex1] += n;
                 normals[vIndex2] += n;
             }
 
+
+            //最后归一化
             for (var i = 0; i < normals.Length; i++)
             {
                 normals[i] = math.normalizesafe(normals[i]);

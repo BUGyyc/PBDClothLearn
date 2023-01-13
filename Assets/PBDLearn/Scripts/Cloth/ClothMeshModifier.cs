@@ -236,6 +236,13 @@ namespace PBDLearn
         //     return result;
         // }
 
+        /// <summary>
+        /// 获取三角形的未被传参的第三点
+        /// </summary>
+        /// <param name="triangleIndex"></param>
+        /// <param name="exceptVertex0"></param>
+        /// <param name="exceptVertex1"></param>
+        /// <returns></returns>
         public int GetTriangleVertexIndexExcept(int triangleIndex, int exceptVertex0, int exceptVertex1)
         {
             for (var i = 0; i < 3; i++)

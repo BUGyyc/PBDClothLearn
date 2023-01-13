@@ -45,6 +45,9 @@ namespace PBDLearn
 
     public struct RigidbodyDesc{
         public float mass;
+        /// <summary>
+        /// 反弹力
+        /// </summary>
         public float bounciness;
         public float3 velocity;
     }

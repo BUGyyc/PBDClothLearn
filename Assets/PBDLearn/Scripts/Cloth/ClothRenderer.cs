@@ -56,6 +56,11 @@ namespace PBDLearn
             transform.localPosition = Vector3.zero;
         }
 
+        /// <summary>
+        /// 把布料栓到点上
+        /// </summary>
+        /// <param name="vertexIndex"></param>
+        /// <param name="target"></param>
         public void Attach(int vertexIndex, Transform target)
         {
             if (!target)
@@ -81,18 +86,24 @@ namespace PBDLearn
         {
             if (_simulator != null)
             {
+                //指定栓住布料
                 foreach (var pair in _attachments)
                 {
                     _simulator.AddPinConstraint(pair.Key, pair.Value.position);
                 }
+
+                //写入持续的风场力
                 _simulator.SetFieldForce(windZone.transform.forward * windZone.windMain);
                 _elapsedTime += Time.deltaTime;
                 int cnt = Mathf.FloorToInt(_elapsedTime / dt);
+                //可刷新的次数
                 for (var i = 0; i < cnt; i++)
                 {
+                    //间隔了很长时间，就多Tick几次
                     _simulator.Step(dt);
                     if (i < cnt - 1)
                     {
+                        //??
                         _simulator.ComputeAsyncJobs();
                     }
                 }
