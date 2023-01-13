@@ -322,20 +322,27 @@ namespace PBDLearn
             var p3 = predictPositions[cons.vIndex2] - p1;
             var p4 = predictPositions[cons.vIndex3] - p1;
             p1 = 0;
+
+            //求得预测坐标的 两个法向量
             var n1 = math.normalize(math.cross(p2, p3));
             var n2 = math.normalize(math.cross(p2, p4));
 
+            //两个法向量的点乘值
             var d = math.dot(n1, n2);
 
+            //两个法向量长度
             var p23Len = math.length(math.cross(p2, p3));
             var p24Len = math.length(math.cross(p2, p4));
 
+            //TODO:
+            //!!
             var q3 = (math.cross(p2, n2) + math.cross(n1, p2) * d) / p23Len;
             var q4 = (math.cross(p2, n1) + math.cross(n2, p2) * d) / p24Len;
             var q2 = -(math.cross(p3, n2) + math.cross(n1, p3) * d) / p23Len
             - (math.cross(p4, n1) + math.cross(n2, p4) * d) / p24Len;
             var q1 = -q2 - q3 - q4;
 
+            //?? 质量倒数 表示成反比？？
             var w1 = 1 / masses[cons.vIndex0];
             var w2 = 1 / masses[cons.vIndex1];
             var w3 = 1 / masses[cons.vIndex2];
@@ -350,12 +357,15 @@ namespace PBDLearn
 
             var s = -(math.acos(d) - cons.rest) * math.sqrt(1 - d * d) / sum;
 
+            //过滤问题
             if (math.isfinite(s))
             {
+                //!
                 var dp1 = s * w1 * q1 * di * bendStiffness;
                 var dp2 = s * w2 * q2 * di * bendStiffness;
                 var dp3 = s * w3 * q3 * di * bendStiffness;
                 var dp4 = s * w4 * q4 * di * bendStiffness;
+                //最后写入坐标
                 verticesCorrectResult[cons.vIndex0] += dp1;
                 verticesCorrectResult[cons.vIndex1] += dp2;
                 verticesCorrectResult[cons.vIndex2] += dp3;
@@ -426,8 +436,13 @@ namespace PBDLearn
 
         public void Execute(int index)
         {
-
+            /// <summary>
+            /// 约束类型
+            /// </summary>
             var constraintType = activeConstraintTypes[index];
+            /// <summary>
+            /// 之前Job 的累计值
+            /// </summary>
             var positionCorrect = this.positionCorrect[index];
             this.positionCorrect[index] = 0;
             if ((constraintType & ConstraintType.Pin) == ConstraintType.Pin)
@@ -475,12 +490,16 @@ namespace PBDLearn
         {
             if ((constraintTypes[index] & ConstraintType.Collision) == ConstraintType.Collision)
             {
+                //碰撞器约束，速度的最终值来自于碰撞器
                 velocities[index] = this.collisionConstraintInfos[index].velocity;
             }
             else
             {
+                //其他情况， 速度来自于 两次坐标的差值 除以 间隔时间
                 velocities[index] = (predictPositions[index] - positions[index]) / dt;
             }
+
+            //写入最终坐标
             positions[index] = predictPositions[index];
         }
     }

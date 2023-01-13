@@ -103,10 +103,11 @@ namespace PBDLearn
                     _simulator.Step(dt);
                     if (i < cnt - 1)
                     {
-                        //??
+                        //??  除了最后一步不处理， 为啥最后一步不做
                         _simulator.ComputeAsyncJobs();
                     }
                 }
+                //剩余时间
                 _elapsedTime %= dt;
             }
         }
@@ -115,7 +116,9 @@ namespace PBDLearn
         {
             if (_simulator != null)
             {
+                //!  ??
                 _simulator.ComputeAsyncJobs();
+                //把顶点和法线写回GPU
                 _mesh.SetVertices(_simulator.positions);
                 _mesh.SetNormals(_simulator.normals);
                 _mesh.RecalculateBounds();

@@ -395,9 +395,9 @@ namespace PBDLearn
         {
             int iteratorCount = this.constraintSolverIteratorCount;
             float di = 1.0f / (iteratorCount - iterIndex);
-            //??
+            //??  压力
             var compressStiffnessIt = GetStiffnessForIteration(this.compressStiffness, iteratorCount);
-            //!
+            //!  拉力
             var stretchStiffnessIt = GetStiffnessForIteration(this.stretchStiffness, iteratorCount);
             var job = new DistanceConstraintJob();
             job.di = di;
@@ -413,6 +413,7 @@ namespace PBDLearn
 
         private JobHandle StartBendConstraintsJob(JobHandle depend, int iterIndex)
         {
+            //迭代比例
             float di = 1.0f / (this.constraintSolverIteratorCount - iterIndex);
             var job = new BendConstaintsGenerateJob();
             job.bendConstarints = _bendConstraints;
@@ -463,6 +464,10 @@ namespace PBDLearn
                 /// </summary>
                 /// <returns></returns>
                 jobHandle = StartBendConstraintsJob(jobHandle, i);
+                /// <summary>
+                /// ??最终约束器
+                /// </summary>
+                /// <returns></returns>
                 jobHandle = StartFinalConstraintsJob(jobHandle, i);
             }
             return jobHandle;
@@ -517,6 +522,9 @@ namespace PBDLearn
         }
 
 
+        /// <summary>
+        /// 给刚体 添加物理力
+        /// </summary>
         private void ApplyPhysicalSimulationToRigidbodies()
         {
             for (var i = 0; i < _rigidBodyForceApplys.Length; i++)
@@ -537,14 +545,19 @@ namespace PBDLearn
             var handle = this.CalculateNormalsJob();
             //预测位置
             handle = this.EstimatePositionsJob(handle, dt);
+            //碰撞处理
             handle = this.StartCollisionDetectionJob(handle, dt);
+            //约束器处理
             handle = StartConstraintsSolveJob(handle);
+
+            //更新速度，写入最后处理得到的最新坐标
             handle = StartUpdateVelocitiesAndPositions(handle, dt);
             _jobHandle = handle;
         }
 
         public void ComputeAsyncJobs()
         {
+            //表示 Job 完成了？？
             _jobHandle.Complete();
             this.ApplyPhysicalSimulationToRigidbodies();
         }
