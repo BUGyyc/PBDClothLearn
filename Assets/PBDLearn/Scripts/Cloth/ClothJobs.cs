@@ -280,7 +280,10 @@ namespace PBDLearn
                 //大于约束值  ， 表现拉力
                 correct = stretchStiffness * normal * err;
             }
+            //两个边的质量
             var totalM = m0 + m1;
+
+            //通过迭代值和 质量比 分配 位移给两个点
             positionCorrects[constraint.vIndex0] += correct * di * m1 / totalM;
             positionCorrects[constraint.vIndex1] -= correct * di * m0 / totalM;
         }

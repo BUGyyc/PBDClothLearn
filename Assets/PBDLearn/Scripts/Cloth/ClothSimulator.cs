@@ -458,6 +458,10 @@ namespace PBDLearn
                 /// </summary>
                 /// <returns></returns>
                 jobHandle = StartDistanceConstraintsJob(jobHandle, i);
+                /// <summary>
+                /// 弯曲约束
+                /// </summary>
+                /// <returns></returns>
                 jobHandle = StartBendConstraintsJob(jobHandle, i);
                 jobHandle = StartFinalConstraintsJob(jobHandle, i);
             }
